@@ -8,7 +8,8 @@ from langgraph.graph import StateGraph, END
 import wikipedia, chardet, whisper
 from io import BytesIO, StringIO
 import gradio as gr
-from huggingface_hub import HfApi, get_token
+from huggingface_hub import HfApi, get_token'
+from .config import DEFAULT_API_URL, USER_AGENT, ATTACHMENTS, ATTACHMENT_BASE_URL
 
 
 
