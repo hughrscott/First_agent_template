@@ -5,7 +5,7 @@ colorFrom: green
 colorTo: yellow
 sdk: gradio
 sdk_version: "4.44.1"
-app_file: agents/app.py
+app_file: agent/app.py
 pinned: false
 hf_oauth: true
 ---
