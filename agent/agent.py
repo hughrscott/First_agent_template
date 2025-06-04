@@ -10,6 +10,8 @@ from .nodes import (
     AudioExtractionNode,
     DataExtractionNode,
     VideoExtractionNode,
+    AnswerRefinementNode,
+    WebSearchNode,
 )
 
 # Workflow Assembly (paste the code here)
@@ -22,15 +24,22 @@ nodes = [
     "AudioExtractionNode",
     "DataExtractionNode",
     "VideoExtractionNode",
+    "WebSearchNode",
 ]
 
 workflow.add_node("MediaRouter", MediaRouter)
 for node in nodes:
     workflow.add_node(node, globals()[node])
 
+# Add the refinement node
+workflow.add_node("AnswerRefinementNode", AnswerRefinementNode)
+
 workflow.set_conditional_entry_point(MediaRouter, {node: node for node in nodes})
 
 for node in nodes:
-    workflow.add_edge(node, END)
+    workflow.add_edge(node, "AnswerRefinementNode")
+
+# The refinement node then goes to END
+workflow.add_edge("AnswerRefinementNode", END)
 
 app = workflow.compile()

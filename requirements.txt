@@ -17,3 +17,5 @@ langchain
 openai-whisper
 requests
 python-dotenv
+gradio[oauth]
+duckduckgo-search

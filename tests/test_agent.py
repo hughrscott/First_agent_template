@@ -1,4 +1,5 @@
 import os
+print(f"Current Working Directory: {os.getcwd()}")
 from pathlib import Path
 import shutil # For cleaning up directories
 
@@ -35,7 +36,7 @@ from agent.config import DEFAULT_API_URL, USER_AGENT, ATTACHMENTS, ATTACHMENT_BA
 from agent.utils import get_file_type, download_file
 
 
-# --- Test Harness Configuration ---
+# --- Test Harness Configuration --
 # PROJECT_ROOT is defined above in the dotenv block
 TEST_DATA_DIR = PROJECT_ROOT / "data"
 QUESTIONS_FILE = TEST_DATA_DIR / "questions.json"
