@@ -2,7 +2,7 @@ from langgraph.graph import StateGraph, END
 from typing import TypedDict # For AgentState
 
 # Import your state and nodes from the nodes.py file
-from .nodes import (
+from agent.nodes import (
     AgentState, # The TypedDict for your agent's state
     MediaRouter,
     TextExtractionNode,
