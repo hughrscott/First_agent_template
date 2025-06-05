@@ -5,7 +5,7 @@ colorFrom: green
 colorTo: yellow
 sdk: gradio
 sdk_version: "4.44.1" # Always put version strings in quotes
-app_file: agent/app.py # Corrected path and file extension
+app_file: app.py # Corrected path and file extension
 pinned: false
 hf_oauth: true # This line is correct for enabling OAuth
 ---
