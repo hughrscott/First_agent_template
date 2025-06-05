@@ -9,8 +9,8 @@ import chardet
 import whisper
 
 # Import utilities and configuration needed by the nodes
-from .utils import download_file, get_youtube_transcript, extract_final_answer, get_file_type
-from .config import SYSTEM_PROMPT, ATTACHMENTS # ATTACHMENTS is important as it's read by MediaRouter and nodes
+from agent.utils import download_file, get_youtube_transcript, extract_final_answer, get_file_type
+from agent.config import SYSTEM_PROMPT, ATTACHMENTS # ATTACHMENTS is important as it's read by MediaRouter and nodes
 from duckduckgo_search import DDGS
 
 # Initialize OpenAI client (ensure OPENAI_API_KEY is set in your environment)

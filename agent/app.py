@@ -11,7 +11,7 @@ import gradio as gr
 from huggingface_hub import HfApi, get_token
 from config import DEFAULT_API_URL, USER_AGENT, ATTACHMENTS, ATTACHMENT_BASE_URL
 # Import utility functions from your utils.py
-from .utils import extract_final_answer, download_file, get_file_type, fetch_task_attachment, get_youtube_transcript
+from agent.utils import extract_final_answer, download_file, get_file_type, fetch_task_attachment, get_youtube_transcript
 
 
 

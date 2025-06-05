@@ -12,7 +12,7 @@ import wikipedia
 # import tempfile # These are for audio processing, will go with nodes.py
 
 # Import configuration variables from your config.py
-from .config import USER_AGENT, ATTACHMENTS, ATTACHMENT_BASE_URL
+from agent.config import USER_AGENT, ATTACHMENTS, ATTACHMENT_BASE_URL
 
 
 # Initialize wikipedia with the user agent from config
