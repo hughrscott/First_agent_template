@@ -1,4 +1,4 @@
-import os, re, base64, tempfile, requests, uuid, json
+import os, re, base64, tempfile, requests, uuid, json, sys
 import pandas as pd
 import numpy as np
 from typing import TypedDict
@@ -12,9 +12,15 @@ from huggingface_hub import HfApi, get_token
 from config import DEFAULT_API_URL, USER_AGENT, ATTACHMENTS, ATTACHMENT_BASE_URL
 # Import utility functions from your utils.py
 from agent.utils import extract_final_answer, download_file, get_file_type, fetch_task_attachment, get_youtube_transcript
+from pathlib import Path
 
-
-
+# Get the absolute path of the directory containing app.py (i.e., /home/user/app/agent/)
+current_dir = Path(__file__).parent.resolve()
+# Get the parent directory (i.e., /home/user/app/)
+project_root = current_dir.parent
+# Add the project root to sys.path so Python can find 'agent' as a package
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 
 
