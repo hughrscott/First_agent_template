@@ -31,8 +31,10 @@ print("=== DETAILED DEBUG ===")
 key = os.getenv('OPENAI_API_KEY', '')
 print(f"Key length: {len(key)}")
 print(f"Key repr: {repr(key[:20])}...{repr(key[-10:])}")  # Shows hidden chars
-print(f"Has newlines: {'\\n' in key}")
-print(f"Has spaces at end: {key != key.strip()}")
+newline_check = '\n' in key
+space_check = key != key.strip()
+print(f"Has newlines: {newline_check}")
+print(f"Has spaces at end: {space_check}")
 print("=== END DETAILED DEBUG ===")
 if os.getenv('OPENAI_API_KEY'):
     key = os.getenv('OPENAI_API_KEY')
