@@ -27,6 +27,13 @@ print("=== DEBUG: Environment Check ===")
 print(f"OPENAI_API_KEY exists: {bool(os.getenv('OPENAI_API_KEY'))}")
 print(f"API key starts with sk-: {os.getenv('OPENAI_API_KEY', '').startswith('sk-')}")
 print(f"API key length: {len(os.getenv('OPENAI_API_KEY', ''))}")
+print("=== DETAILED DEBUG ===")
+key = os.getenv('OPENAI_API_KEY', '')
+print(f"Key length: {len(key)}")
+print(f"Key repr: {repr(key[:20])}...{repr(key[-10:])}")  # Shows hidden chars
+print(f"Has newlines: {'\\n' in key}")
+print(f"Has spaces at end: {key != key.strip()}")
+print("=== END DETAILED DEBUG ===")
 if os.getenv('OPENAI_API_KEY'):
     key = os.getenv('OPENAI_API_KEY')
     print(f"API key preview: {key[:10]}...{key[-4:] if len(key) > 10 else key}")
