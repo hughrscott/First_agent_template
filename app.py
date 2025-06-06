@@ -22,7 +22,15 @@ project_root = current_dir.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-
+# Add this debug section right after your imports:
+print("=== DEBUG: Environment Check ===")
+print(f"OPENAI_API_KEY exists: {bool(os.getenv('OPENAI_API_KEY'))}")
+print(f"API key starts with sk-: {os.getenv('OPENAI_API_KEY', '').startswith('sk-')}")
+print(f"API key length: {len(os.getenv('OPENAI_API_KEY', ''))}")
+if os.getenv('OPENAI_API_KEY'):
+    key = os.getenv('OPENAI_API_KEY')
+    print(f"API key preview: {key[:10]}...{key[-4:] if len(key) > 10 else key}")
+print("=== END DEBUG ===")
 
 # Gradio integration
 def run_and_submit_all():
