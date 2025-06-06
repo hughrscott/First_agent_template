@@ -13,8 +13,7 @@ from agent.config import DEFAULT_API_URL, USER_AGENT, ATTACHMENTS, ATTACHMENT_BA
 # Import utility functions from your utils.py
 from agent.utils import extract_final_answer, download_file, get_file_type, fetch_task_attachment, get_youtube_transcript
 from pathlib import Path
-from agent.agent import app, AgentState, MediaRouter, TextExtractionNode, ImageExtractionNode, AudioExtractionNode, DataExtractionNode, VideoExtractionNode, AnswerRefinementNode, WebSearchNode 
-
+from agent.agent import app, AgentState, SmartRouter, TextExtractionNode, ImageExtractionNode, AudioExtractionNode, DataExtractionNode, VideoExtractionNode, AnswerRefinementNode, WebSearchNode
 
 # Get the absolute path of the directory containing app.py (i.e., /home/user/app/agent/)
 current_dir = Path(__file__).parent.resolve()
