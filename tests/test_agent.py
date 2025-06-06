@@ -129,14 +129,13 @@ def download_gaia_attachment_local(task_id: str):
         return None
 
 
+# Smart attachment handling in your test_agent.py
+
 def run_local_agent_test():
-    """
-    Runs the agent on downloaded GAIA questions and prints the results.
-    Does NOT submit answers to the scoring server.
-    """
+    """Runs the agent with smart attachment handling"""
     setup_test_environment()
 
-    # Try to load questions from local file, if not present, download them
+    # Load questions
     questions = []
     if QUESTIONS_FILE.exists():
         with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
@@ -157,21 +156,28 @@ def run_local_agent_test():
     for i, q in enumerate(questions):
         print(f"\n--- Processing Question {i+1}/{len(questions)} (Task ID: {q['task_id']}) ---")
         
-        # Reset ATTACHMENTS for each question to prevent cross-contamination
+        # Reset ATTACHMENTS for each question
         ATTACHMENTS.clear() 
 
+        # SMART: Only download if file_name is not empty
         attachment_id_for_state = None
-        if q.get("has_attachment", False): # Assuming questions JSON might indicate this, otherwise always try download
-             attachment_id_for_state = download_gaia_attachment_local(q["task_id"])
+        if q.get("file_name", "").strip():
+            print(f"  File available: {q['file_name']}")
+            print(f"  Attempting download from: {ATTACHMENT_BASE_URL}{q['task_id']}")
+            attachment_id_for_state = download_gaia_attachment_local(q["task_id"])
+            if attachment_id_for_state:
+                print(f"  ✅ Downloaded: {ATTACHMENTS[attachment_id_for_state]['name']}")
+            else:
+                print(f"  ❌ Download failed")
         else:
-            print(f"  Question {q['task_id']} does not indicate an attachment.")
+            print(f"  No attachment for this question")
         
         initial_state = AgentState(
             question=q["question"],
             answer="",
             extracted_data="",
             media_type="",
-            attachment_id=attachment_id_for_state, # Use the task_id as the key into the ATTACHMENTS global
+            attachment_id=attachment_id_for_state,
             task_id=q["task_id"],
         )
 
@@ -184,9 +190,10 @@ def run_local_agent_test():
                 "task_id": q["task_id"],
                 "question": q["question"],
                 "predicted_answer": predicted_answer,
+                "has_file": bool(q.get("file_name", "").strip()),
             })
-            print(f"\n  Question: {q['question']}")
-            print(f"  Agent's Predicted Answer: {predicted_answer}")
+            print(f"\n  Question: {q['question'][:100]}...")
+            print(f"  Agent's Answer: {predicted_answer}")
 
         except Exception as e:
             error_msg = f"ERROR: Agent failed to process question {q['task_id']}: {e}"
@@ -195,20 +202,28 @@ def run_local_agent_test():
                 "task_id": q["task_id"],
                 "question": q["question"],
                 "predicted_answer": error_msg,
+                "has_file": bool(q.get("file_name", "").strip()),
             })
 
     print("\n" + "="*50)
     print("Local Agent Test Run Summary")
     print("="*50 + "\n")
-    if results:
-        for res in results:
-            print(f"Task ID: {res['task_id']}")
-            print(f"  Question: {res['question']}")
-            print(f"  Answer: {res['predicted_answer']}\n")
-    else:
-        print("No results to display.")
+    
+    # Categorize results
+    with_files = [r for r in results if r["has_file"]]
+    without_files = [r for r in results if not r["has_file"]]
+    
+    print(f"Questions with files: {len(with_files)}")
+    print(f"Questions without files: {len(without_files)}")
+    print()
+    
+    for res in results:
+        file_indicator = "📎" if res["has_file"] else "💬"
+        print(f"{file_indicator} Task ID: {res['task_id']}")
+        print(f"  Question: {res['question'][:80]}...")
+        print(f"  Answer: {res['predicted_answer']}\n")
 
-    print("\n--- Local Test Complete. No answers were submitted. ---")
+    print("\n--- Local Test Complete ---")
 
 
 if __name__ == "__main__":

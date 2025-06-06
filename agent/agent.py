@@ -1,45 +1,52 @@
+# Clean, simple agent.py - let the LLM choose
 from langgraph.graph import StateGraph, END
-from typing import TypedDict # For AgentState
+from typing import TypedDict
 
-# Import your state and nodes from the nodes.py file
 from agent.nodes import (
-    AgentState, # The TypedDict for your agent's state
-    MediaRouter,
-    TextExtractionNode,
+    AgentState,
+    SmartRouter,  # Our new simple LLM-driven router
+    # Keep your existing working nodes
+    CalculatorNode,
+    WebSearchNode,
+    DataExtractionNode,
     ImageExtractionNode,
     AudioExtractionNode,
-    DataExtractionNode,
     VideoExtractionNode,
+    MultiStepNode,
     AnswerRefinementNode,
-    WebSearchNode,
 )
 
-# Workflow Assembly (paste the code here)
-# Define the LangGraph workflow
-# Workflow Assembly
+# Simple workflow - let the LLM decide everything
 workflow = StateGraph(AgentState)
-nodes = [
-    "TextExtractionNode",
+
+# Available execution nodes
+execution_nodes = [
+    "CalculatorNode",
+    "WebSearchNode", 
+    "DataExtractionNode",
     "ImageExtractionNode",
     "AudioExtractionNode",
-    "DataExtractionNode",
-    "VideoExtractionNode",
-    "WebSearchNode",
+    "VideoExtractionNode", 
+    "MultiStepNode",
 ]
 
-workflow.add_node("MediaRouter", MediaRouter)
-for node in nodes:
+# Add the smart router
+workflow.add_node("SmartRouter", SmartRouter)
+
+# Add all execution nodes
+for node in execution_nodes:
     workflow.add_node(node, globals()[node])
 
-# Add the refinement node
+# Add refinement
 workflow.add_node("AnswerRefinementNode", AnswerRefinementNode)
 
-workflow.set_conditional_entry_point(MediaRouter, {node: node for node in nodes})
+# Simple flow: Router -> Execution -> Refinement -> Done
+workflow.set_conditional_entry_point(SmartRouter, {node: node for node in execution_nodes})
 
-for node in nodes:
+# All execution nodes go to refinement
+for node in execution_nodes:
     workflow.add_edge(node, "AnswerRefinementNode")
 
-# The refinement node then goes to END
 workflow.add_edge("AnswerRefinementNode", END)
 
 app = workflow.compile()

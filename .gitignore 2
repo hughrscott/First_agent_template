@@ -1,0 +1,16 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+.env/
+
+# Other common build artifacts and cache directories
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.vscode/ # Important: VS Code project settings - consider if you want to share specific workspace settings
+.DS_Store # macOS specific
+
+# Environment variables file
+.env
