@@ -1,4 +1,5 @@
 import os
+from agent.utils import download_gaia_attachment_local
 print(f"Current Working Directory: {os.getcwd()}")
 from pathlib import Path
 import shutil # For cleaning up directories
@@ -81,54 +82,6 @@ def download_gaia_questions():
         return []
 
 
-def download_gaia_attachment_local(task_id: str):
-    """
-    Downloads an attachment for a given task_id and saves it locally.
-    Also populates the global ATTACHMENTS dictionary with the content for the agent.
-    """
-    print(f"  Attempting to download attachment for task {task_id}...")
-    try:
-        response = requests.get(
-            f"{ATTACHMENT_BASE_URL}{task_id}", headers={"User-Agent": USER_AGENT}, timeout=20
-        )
-        response.raise_for_status()
-
-        content_disposition = response.headers.get("content-disposition", "")
-        filename_matches = re.findall(r'filename\*?=(?:UTF-8'')?([^;]+)', content_disposition)
-        filename = (
-            filename_matches[0].strip().strip('"') if filename_matches
-            else f"{task_id}_attachment"
-        )
-        filename = requests.utils.unquote(filename) # Decode URL-encoded characters
-
-        local_path = ATTACHMENTS_DIR / filename
-        with open(local_path, "wb") as f:
-            f.write(response.content)
-
-        file_type = get_file_type(filename)
-
-        # Populate the global ATTACHMENTS dictionary, as the agent nodes expect it
-        ATTACHMENTS[task_id] = {
-            "name": filename,
-            "content": response.content,
-            "type": file_type,
-        }
-        print(f"  Successfully downloaded '{filename}' to {local_path} (Type: {file_type}).")
-        return task_id # Return the task_id which is used as the key in ATTACHMENTS
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 404:
-            print(f"  No attachment found for task {task_id} (404 Not Found).")
-        else:
-            print(f"  HTTP error fetching attachment for task {task_id}: {e}")
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"  Network error fetching attachment for task {task_id}: {e}")
-        return None
-    except Exception as e:
-        print(f"  An unexpected error occurred fetching attachment for task {task_id}: {e}")
-        return None
-
-
 # Smart attachment handling in your test_agent.py
 
 def run_local_agent_test():
@@ -165,6 +118,14 @@ def run_local_agent_test():
             print(f"  File available: {q['file_name']}")
             print(f"  Attempting download from: {ATTACHMENT_BASE_URL}{q['task_id']}")
             attachment_id_for_state = download_gaia_attachment_local(q["task_id"])
+            #debug code here
+            # Right after your attachment download attempt:
+            print(f"DEBUG CHECKPOINT:")
+            print(f"  Question has file_name: '{q.get('file_name', '')}'")
+            print(f"  Download attempt returned: {attachment_id_for_state}")
+            print(f"  ATTACHMENTS now contains: {list(ATTACHMENTS.keys())}")
+            print(f"  Passing attachment_id to agent: {attachment_id_for_state}")
+            #end debug code
             if attachment_id_for_state:
                 print(f"  ✅ Downloaded: {ATTACHMENTS[attachment_id_for_state]['name']}")
             else:

@@ -3,21 +3,12 @@ import re
 import requests
 from youtube_transcript_api import YouTubeTranscriptApi
 import wikipedia
-# from io import BytesIO, StringIO # These are for data processing, will go with nodes.py
-# import pandas as pd # These are for data processing, will go with nodes.py
-# import numpy as np # These are for data processing, will go with nodes.py
-# import chardet # These are for data processing, will go with nodes.py
-# import whisper # These are for audio processing, will go with nodes.py
-# import base64 # These are for image processing, will go with nodes.py
-# import tempfile # These are for audio processing, will go with nodes.py
 
 # Import configuration variables from your config.py
 from agent.config import USER_AGENT, ATTACHMENTS, ATTACHMENT_BASE_URL
 
-
 # Initialize wikipedia with the user agent from config
 wikipedia.set_user_agent(USER_AGENT)
-
 
 # Utility Functions
 def extract_final_answer(response_text: str) -> str:
@@ -28,7 +19,6 @@ def extract_final_answer(response_text: str) -> str:
     if match:
         return match.group(1).strip()
     return "unknown"
-
 
 def download_file(url: str) -> bytes:
     """
@@ -41,7 +31,6 @@ def download_file(url: str) -> bytes:
     except Exception as e:
         print(f"Error downloading file from {url}: {str(e)}")
         return None
-
 
 def get_file_type(filename: str) -> str:
     """
@@ -57,7 +46,6 @@ def get_file_type(filename: str) -> str:
     if ext in (".mp4", ".mov", ".avi", ".mkv", ".webm"): # Added more video types
         return "video"
     return "unknown"
-
 
 def fetch_task_attachment(task_id: str) -> str:
     """
@@ -81,7 +69,6 @@ def fetch_task_attachment(task_id: str) -> str:
         # Decode URL-encoded characters if necessary (e.g., %20 to space)
         filename = requests.utils.unquote(filename)
 
-
         ATTACHMENTS[task_id] = {
             "name": filename,
             "content": response.content,
@@ -102,6 +89,10 @@ def fetch_task_attachment(task_id: str) -> str:
         print(f"An unexpected error occurred fetching attachment for task {task_id}: {e}")
         return None
 
+# Alias for compatibility with test harness
+def download_gaia_attachment_local(task_id: str) -> str:
+    """Alias for fetch_task_attachment for compatibility"""
+    return fetch_task_attachment(task_id)
 
 def get_youtube_transcript(video_url: str) -> str:
     """
@@ -121,3 +112,42 @@ def get_youtube_transcript(video_url: str) -> str:
     except Exception as e:
         print(f"Error getting YouTube transcript for {video_url}: {str(e)}")
         return ""
+def extract_audio_from_video(video_content: bytes) -> bytes:
+    """Extract audio track from video content using ffmpeg"""
+    import subprocess
+    import tempfile
+    
+    try:
+        # Create temporary files
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as video_file:
+            video_file.write(video_content)
+            video_path = video_file.name
+        
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as audio_file:
+            audio_path = audio_file.name
+        
+        # Use ffmpeg to extract audio
+        subprocess.run([
+            'ffmpeg', '-i', video_path, 
+            '-vn',  # No video
+            '-acodec', 'pcm_s16le',  # Audio codec
+            '-ar', '16000',  # Sample rate
+            '-ac', '1',  # Mono
+            '-y',  # Overwrite output
+            audio_path
+        ], check=True, capture_output=True)
+        
+        # Read the extracted audio
+        with open(audio_path, 'rb') as f:
+            audio_content = f.read()
+        
+        # Cleanup
+        import os
+        os.unlink(video_path)
+        os.unlink(audio_path)
+        
+        return audio_content
+        
+    except Exception as e:
+        print(f"Error extracting audio from video: {e}")
+        return None

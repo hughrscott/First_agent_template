@@ -9,6 +9,7 @@ from io import BytesIO, StringIO
 import wikipedia
 import chardet
 import whisper
+import requests
 
 from agent.utils import download_file, get_youtube_transcript, extract_final_answer, get_file_type
 from agent.config import SYSTEM_PROMPT, ATTACHMENTS
@@ -96,13 +97,13 @@ Respond with just the approach name (e.g., "web_search" or "calculator").
         
         return "WebSearchNode"
 
-# LLM-FIRST WEB SEARCH: Let AI plan and execute searches
+# ENHANCED WEB SEARCH: Get full page content instead of snippets
 def WebSearchNode(state: AgentState) -> AgentState:
-    """Intelligent web search - let LLM plan the search strategy"""
+    """Enhanced web search with full page content fetching"""
     try:
         question = state["question"]
         
-        # Step 1: Let LLM plan the search strategy
+        # Step 1: Let LLM plan search strategy
         search_planning_prompt = f"""You are a research expert. Plan how to search for this question:
 
 Question: {question}
@@ -110,17 +111,12 @@ Question: {question}
 Create a search strategy:
 1. Generate 2-3 different search queries that might find the answer
 2. Consider what type of sources would be most reliable
-3. Think about what specific information you're looking for
 
 Respond in JSON format:
-{{
-    "queries": ["query1", "query2", "query3"],
-    "target_info": "what specific information to look for",
-    "source_preference": "type of sources that would be most reliable"
-}}"""
+{{"queries": ["query1", "query2", "query3"], "target_info": "what specific information to look for"}}"""
 
         planning_response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4o",  # Upgraded model
             messages=[{"role": "user", "content": search_planning_prompt}],
             max_tokens=200,
             temperature=0.2,
@@ -134,44 +130,117 @@ Respond in JSON format:
             queries = [question]
             target_info = ""
         
-        # Step 2: Execute searches
-        all_results = ""
-        for query in queries[:3]:  # Limit to 3 queries
+        # Step 2: Search and collect URLs
+        found_urls = []
+        search_preview = ""
+        
+        for query in queries[:2]:  # Limit to 2 queries for speed
             try:
                 with DDGS() as ddgs:
+                    search_count = 0
                     for r in ddgs.text(query, region='wt-wt', safesearch='off', timelimit='year'):
-                        all_results += f"Query: {query}\nTitle: {r['title']}\nSnippet: {r['body']}\nURL: {r['href']}\n\n"
-                        if len(all_results) > 4000:
+                        found_urls.append(r['href'])
+                        search_preview += f"Query: {query}\nTitle: {r['title']}\nSnippet: {r['body']}\nURL: {r['href']}\n\n"
+                        search_count += 1
+                        if search_count >= 3:  # Top 3 URLs per query
                             break
-                if len(all_results) > 4000:
+                if len(found_urls) >= 5:  # Total limit
                     break
             except Exception as e:
                 print(f"Search error for query '{query}': {e}")
         
-        if not all_results:
+        # Step 3: Fetch full content from promising URLs
+        full_content = ""
+        successful_fetches = 0
+        
+        for url in found_urls[:3]:  # Fetch from top 3 URLs
+            try:
+                print(f"DEBUG: Attempting to fetch {url}")
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (compatible; ResearchBot/1.0)',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                }
+                
+                response = requests.get(url, headers=headers, timeout=10)
+                print(f"DEBUG: Response status: {response.status_code}")
+                response.raise_for_status()
+                
+                # Extract text content (remove HTML tags)
+                text_content = response.text
+                print(f"DEBUG: Content length: {len(text_content)} characters")
+                
+                # Simple HTML tag removal
+                import re
+                text_content = re.sub(r'<script[^>]*>.*?</script>', '', text_content, flags=re.DOTALL)
+                text_content = re.sub(r'<style[^>]*>.*?</style>', '', text_content, flags=re.DOTALL)
+                text_content = re.sub(r'<[^>]+>', ' ', text_content)
+                text_content = re.sub(r'\s+', ' ', text_content).strip()
+                
+                print(f"DEBUG: Text content length after cleaning: {len(text_content)} characters")
+                
+                # Focus on relevant sections if target_info is available
+                if target_info and len(text_content) > 4000:
+                    # Look for paragraphs containing target keywords
+                    paragraphs = text_content.split('\n')
+                    relevant_paragraphs = []
+                    target_words = target_info.lower().split()
+                    
+                    for para in paragraphs:
+                        if any(word in para.lower() for word in target_words):
+                            relevant_paragraphs.append(para)
+                    
+                    if relevant_paragraphs:
+                        text_content = '\n'.join(relevant_paragraphs[:20])  # Top 20 relevant paragraphs
+                
+                # Limit content size
+                if len(text_content) > 4000:
+                    text_content = text_content[:4000] + "..."
+                
+                full_content += f"\n--- Content from {url} ---\n{text_content}\n"
+                successful_fetches += 1
+                print(f"DEBUG: ✅ Successfully processed {url}")
+                
+                if len(full_content) > 10000:  # Total content limit
+                    break
+                    
+            except Exception as e:
+                print(f"DEBUG: ❌ Failed to fetch {url}: {e}")
+                continue
+        
+        # Step 4: Fallback to search snippets if no full content
+        if not full_content.strip() or successful_fetches == 0:
+            print("DEBUG: No full content fetched, using search snippets")
+            full_content = search_preview
+        else:
+            print(f"DEBUG: Successfully fetched content from {successful_fetches} URLs")
+        
+        if not full_content.strip():
             state["answer"] = "Could not find relevant search results."
             return state
 
-        # Step 3: Let LLM analyze and synthesize results
-        analysis_prompt = f"""You are a research analyst. Analyze these search results to answer the question.
+        # Step 5: Let LLM analyze the full content
+        analysis_prompt = f"""You are a research analyst. Analyze this content to answer the question.
 
 Original Question: {question}
 Target Information: {target_info}
 
-Search Results:
-{all_results}
+Content from web sources:
+{full_content}
 
 Instructions:
-1. Carefully read through all the search results
+1. Carefully read through all the content
 2. Extract the specific information that answers the question
-3. If you find conflicting information, note it
-4. If the answer requires combining information from multiple sources, do so
-5. Be precise and specific in your answer
+3. Be precise with numbers, names, dates, etc.
+4. If you find the answer, provide it clearly
+5. If information is unclear, indicate what you found
 
 {SYSTEM_PROMPT.strip()}"""
 
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4o",  # Use most capable model
             messages=[
                 {"role": "system", "content": "You are a research analyst who provides precise, well-researched answers."},
                 {"role": "user", "content": analysis_prompt},
@@ -182,10 +251,13 @@ Instructions:
         
         raw_answer = response.choices[0].message.content
         state["answer"] = extract_final_answer(raw_answer)
-        state["extracted_data"] = all_results
+        state["extracted_data"] = full_content[:1000] + "..." if len(full_content) > 1000 else full_content
+        
+        print(f"DEBUG: Enhanced web search found {len(found_urls)} URLs, fetched {successful_fetches} successfully")
         
     except Exception as e:
         state["answer"] = f"Web search error: {str(e)}"
+        print(f"DEBUG: Web search error: {e}")
     
     return state
 
@@ -679,21 +751,24 @@ Instructions:
     return state
 
 def VideoExtractionNode(state: AgentState) -> AgentState:
-    """LLM-first video analysis"""
+    """Enhanced video analysis - transcript OR audio extraction"""
     try:
+        video_content = None
+        video_url = None
+        
+        # Check for YouTube URL in question
         youtube_match = re.search(r"https?://www\.youtube\.com/watch\?v=[a-zA-Z0-9_-]+", state["question"])
         
         if youtube_match:
             video_url = youtube_match.group(0)
+            print(f"DEBUG: Found YouTube URL: {video_url}")
+            
+            # Method 1: Try transcript first (fast)
             transcript = get_youtube_transcript(video_url)
-
-            if not transcript:
-                # Try alternative transcript methods or fallback
-                state["answer"] = "Video transcript not available"
-                return state
-
-            # Enhanced prompt for better video analysis
-            enhanced_prompt = f"""Analyze this video transcript to answer the question.
+            if transcript:
+                print(f"DEBUG: Got transcript ({len(transcript)} chars)")
+                
+                enhanced_prompt = f"""Analyze this video transcript to answer the question.
 
 Question: {state['question']}
 
@@ -709,25 +784,130 @@ Instructions:
 
 {SYSTEM_PROMPT.strip()}"""
 
-            response = client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[
-                    {"role": "system", "content": "You are an expert at analyzing video content. Extract precise information from transcripts."},
-                    {"role": "user", "content": enhanced_prompt},
-                ],
-                max_tokens=400,
-                temperature=0.1,
-            )
-            raw_answer = response.choices[0].message.content
-            state["answer"] = extract_final_answer(raw_answer)
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "You are an expert at analyzing video content. Extract precise information from transcripts."},
+                        {"role": "user", "content": enhanced_prompt},
+                    ],
+                    max_tokens=400,
+                    temperature=0.1,
+                )
+                raw_answer = response.choices[0].message.content
+                state["answer"] = extract_final_answer(raw_answer)
+                return state
+            
+            # Method 2: If no transcript, try downloading and extracting audio
+            print("DEBUG: No transcript available, attempting video download and audio extraction")
+            
+            try:
+                # Download the video
+                import yt_dlp
+                
+                ydl_opts = {
+                    'format': 'best[height<=720]',  # Limit quality for faster download
+                    'noplaylist': True,
+                    'quiet': True,
+                }
+                
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    # Get video info first
+                    info = ydl.extract_info(video_url, download=False)
+                    video_title = info.get('title', 'Unknown')
+                    print(f"DEBUG: Video title: {video_title}")
+                    
+                    # Download to temporary location
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        ydl_opts['outtmpl'] = f'{temp_dir}/video.%(ext)s'
+                        
+                        # Download the video
+                        ydl.download([video_url])
+                        
+                        # Find the downloaded file
+                        import glob
+                        video_files = glob.glob(f'{temp_dir}/video.*')
+                        if video_files:
+                            video_file_path = video_files[0]
+                            print(f"DEBUG: Downloaded video to {video_file_path}")
+                            
+                            # Read video content
+                            with open(video_file_path, 'rb') as f:
+                                video_content = f.read()
+                            
+                            print(f"DEBUG: Video file size: {len(video_content)} bytes")
+            
+            except Exception as e:
+                print(f"DEBUG: Video download failed: {e}")
+                # Try alternative download method or fallback
+                state["answer"] = "Video download failed - unable to analyze"
+                return state
+        
+        # If we have video content, extract audio and transcribe
+        if video_content:
+            print("DEBUG: Attempting audio extraction from video")
+            
+            try:
+                # Extract audio from video
+                from agent.utils import extract_audio_from_video
+                audio_content = extract_audio_from_video(video_content)
+                
+                if audio_content:
+                    print(f"DEBUG: Extracted audio ({len(audio_content)} bytes)")
+                    
+                    # Use Whisper to transcribe the audio
+                    with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
+                        tmp.write(audio_content)
+                        tmp.flush()
+                        
+                        model = whisper.load_model("base")
+                        result = model.transcribe(tmp.name)
+                        transcription = result["text"]
+                        
+                        print(f"DEBUG: Whisper transcription ({len(transcription)} chars): {transcription[:100]}...")
+                        
+                        # Analyze the transcription
+                        enhanced_prompt = f"""Analyze this video audio transcription to answer the question.
+
+Question: {state['question']}
+
+Audio Transcription:
+{transcription}
+
+Instructions:
+1. Read through the transcription carefully
+2. Extract the specific information requested in the question
+3. If looking for dialogue, quotes, or specific words, find them precisely
+4. If counting elements, go through systematically
+5. Provide the exact answer requested
+
+{SYSTEM_PROMPT.strip()}"""
+
+                        response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {"role": "system", "content": "You are an expert at analyzing audio transcriptions from video content."},
+                                {"role": "user", "content": enhanced_prompt},
+                            ],
+                            max_tokens=400,
+                            temperature=0.1,
+                        )
+                        raw_answer = response.choices[0].message.content
+                        state["answer"] = extract_final_answer(raw_answer)
+                        
+                else:
+                    state["answer"] = "Audio extraction failed"
+                    
+            except Exception as e:
+                print(f"DEBUG: Audio extraction/transcription error: {e}")
+                state["answer"] = f"Audio processing error: {str(e)}"
         else:
-            state["answer"] = "No valid YouTube URL found"
+            state["answer"] = "No video content available for analysis"
             
     except Exception as e:
         state["answer"] = f"Video processing error: {str(e)}"
+        print(f"DEBUG: Video processing error: {e}")
     
     return state
-
 # Keep the existing AnswerRefinementNode - it's already LLM-first
 def AnswerRefinementNode(state: AgentState) -> AgentState:
     try:
